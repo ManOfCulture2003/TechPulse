@@ -10,8 +10,14 @@ function setMetric(id,value,bar,alertAt,stateId){
   $(id).textContent=fmt(value);$(bar).style.width=`${Math.max(0,Math.min(100,value))}%`;
   $(stateId).textContent=value >= alertAt?'Needs attention':'Normal';$(stateId).classList.toggle('warning',value>=alertAt);
 }
-function renderOverview({sample,alerts}){
-  if (!sample) { $('sync').textContent='Waiting for first sample…';return; }
+function renderOverview({sample,alerts,collection}){
+  if (!sample) {
+    $('sync').textContent='Waiting for first sample…';
+    $('system-status').textContent='Waiting for first sample';
+    $('banner-desc').textContent='Metrics will appear after the first successful collection.';
+    $('banner-pill').textContent='WAITING';
+    return;
+  }
   setMetric('cpu',sample.cpu_percent,'cpu-bar',90,'cpu-state');
   setMetric('memory',sample.memory_percent,'memory-bar',85,'memory-state');
   setMetric('disk',sample.disk_percent,'disk-bar',90,'disk-state');
@@ -21,6 +27,23 @@ function renderOverview({sample,alerts}){
   $('disk-detail').textContent=`${fmt(sample.disk_free_gb)} GB free`;
   $('machine').textContent=sample.os_name || 'Local device';
   $('sync').textContent=`Updated ${timeLabel(sample.timestamp)}`;
+  const state=collection?.state || 'invalid';
+  if(state!=='fresh'){
+    const outdated=state==='stale';
+    $('sync').textContent=outdated ? `Outdated reading (${collection.age_seconds}s old)` : 'Reading time unavailable';
+    $('system-status').textContent=outdated ? 'Monitoring data is outdated' : 'Monitoring data cannot be verified';
+    $('banner-desc').textContent='These saved values may not reflect your PC right now. Check the TechPulse terminal for collection errors.';
+    $('banner-pill').textContent=outdated ? 'OUTDATED' : 'CHECK DATA';
+    $('banner-pill').classList.add('warn');
+    ['cpu-state','memory-state','disk-state'].forEach(id=>{ $(id).textContent='Not current';$(id).classList.add('warning'); });
+    $('alert-count').textContent='—';
+    const root=$('alerts');root.replaceChildren();const item=document.createElement('div');item.className='alert-item';
+    const title=document.createElement('strong');title.textContent='Live alerts unavailable';
+    const detail=document.createElement('small');detail.textContent='Current resource usage cannot be verified until a fresh sample arrives.';
+    item.append(title,detail);root.append(item);
+    return;
+  }
+  ['cpu-state','memory-state','disk-state'].forEach(id=>$(id).classList.remove('warning'));
   const healthy=alerts.length===0;
   $('system-status').textContent=healthy?'Your system looks healthy':'Your system needs attention';
   $('banner-desc').textContent=healthy?'No resource thresholds are being exceeded right now.':`${alerts.length} performance threshold${alerts.length===1?' is':'s are'} exceeded. Review the alerts below.`;

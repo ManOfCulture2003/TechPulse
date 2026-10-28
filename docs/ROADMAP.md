@@ -5,12 +5,13 @@
 - [x] Persistent history with seven-day retention
 - [x] Responsive browser dashboard with custom chart
 - [x] Threshold alerts with understandable advice
+- [x] API and UI sample freshness states, preventing stale saved readings from looking healthy
 - [x] Top memory-consuming processes
 - [x] CSV export and REST endpoints
 - [x] Optional minimal Windows 4625 event view with access errors handled
 - [x] Automated tests and GitHub Actions configuration
 - [ ] **Validate installation and Windows event query on the owner's actual PC**
-- [ ] **Confirm GitHub Actions passes on the published repository**
+- [x] **Confirm GitHub Actions passes on the published repository** (October 28, 2026; recheck on each new PR)
 
 ## Next — after Windows smoke testing
 1. Improve data quality: timestamps, missing samples, performance benchmarks and time-zone support.
