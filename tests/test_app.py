@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -64,3 +64,23 @@ def test_security_response_safe_shape():
     result = read_failed_logins()
     assert set(result.keys()) == {"status", "message", "events"}
     assert isinstance(result["events"], list)
+
+def test_overview_discloses_stale_values_without_live_alerts(tmp_path):
+    db = tmp_path / "stale.sqlite"
+    old = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat(timespec="seconds")
+    HistoryStore(db).add(sample(timestamp=old, cpu_percent=99))
+    with TestClient(create_app(db, collect=False, interval=15), base_url="http://localhost") as client:
+        result = client.get("/api/overview").json()
+        assert result["sample"]["cpu_percent"] == 99
+        assert result["collection"]["state"] == "stale"
+        assert result["collection"]["age_seconds"] >= 590
+        assert result["alerts"] == []
+
+
+def test_overview_fresh_values_still_generate_alerts(tmp_path):
+    db = tmp_path / "fresh.sqlite"
+    HistoryStore(db).add(sample(cpu_percent=99))
+    with TestClient(create_app(db, collect=False, interval=15), base_url="http://localhost") as client:
+        result = client.get("/api/overview").json()
+        assert result["collection"]["state"] == "fresh"
+        assert result["alerts"][0]["code"] == "cpu_percent"

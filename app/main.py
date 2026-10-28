@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .monitor import Monitor, compute_alerts, top_processes
+from .health_state import evaluate_sample_state
 from .storage import HistoryStore
 from .windows_events import read_failed_logins
 
@@ -66,9 +67,13 @@ def create_app(db_path: Path | None = None, collect: bool = True, interval: int 
     @app.get("/api/overview")
     def overview():
         latest = store.latest()
+        freshness = evaluate_sample_state(latest, interval_seconds=interval)
         if latest:
             latest["os_name"] = f"{platform.system()} {platform.release()}"
-        return {"sample": latest, "alerts": compute_alerts(latest) if latest else [], "interval_seconds": interval}
+        # A saved row is historical evidence, not proof the collector is running.
+        alerts = compute_alerts(latest) if freshness["state"] == "fresh" else []
+        return {"sample": latest, "alerts": alerts, "interval_seconds": interval,
+                "collection": freshness}
 
     @app.get("/api/history")
     def history(minutes: int = Query(default=120, ge=10, le=10080)):
