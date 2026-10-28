@@ -1,1 +1,1 @@
-TechPulse v0.1 source package complete. Unpack via bootstrap workflow.
+Retry import after installing the test workflow through the authenticated GitHub connection.
