@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a101c">
+  <meta name="description" content="TechPulse — private, local PC health monitoring dashboard.">
+  <title>TechPulse | PC Health & Security</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="brand" href="#overview" aria-label="TechPulse home"><span class="brand-mark">⌁</span><span>tech<span class="brand-accent">pulse</span><small>PERSONAL SYSTEM INTELLIGENCE</small></span></a>
+    <span class="side-label">WORKSPACE</span>
+    <nav aria-label="Dashboard sections" class="nav">
+      <a href="#overview" class="active"><span class="nav-icon">◫</span> Overview</a>
+      <a href="#performance"><span class="nav-icon">⌁</span> Performance</a>
+      <a href="#processes"><span class="nav-icon">▤</span> Processes</a>
+      <a href="#security"><span class="nav-icon">◇</span> Security</a>
+    </nav>
+    <div class="side-bottom">
+      <div class="privacy"><span class="privacy-icon">◈</span><div><strong>Private by design</strong><small>All monitoring stays on this computer. No cloud account.</small></div></div>
+      <div class="side-foot"><span class="status-dot"></span> Local agent connected <span class="version">v0.1</span></div>
+    </div>
+  </aside>
+  <main class="main" id="overview">
+    <header class="topbar">
+      <div class="breadcrumbs">Workspace <span>/</span> <strong>System overview</strong></div>
+      <div class="topbar-right"><span id="sync" class="last-updated">Connecting…</span><span class="top-avatar">TP</span></div>
+    </header>
+    <div class="content">
+      <div class="welcome">
+        <div><div class="eyebrow"><span class="eyebrow-line"></span> SYSTEM MONITORING</div><h1>Your PC, at a glance<span class="headline-period">.</span></h1><p>A clearer picture of your system's performance, health, and activity.</p></div>
+        <div class="header-actions"><a class="btn btn-secondary" href="/api/export.csv" download><span>↓</span> Export data</a><button id="refresh" class="btn btn-primary" type="button">↻ &nbsp; Refresh now</button></div>
+      </div>
+      <div class="system-banner"><div class="banner-left"><div class="banner-symbol">✳</div><div><div class="banner-title"><span id="system-status">Starting monitor</span><span id="banner-pill" class="pill success">CHECKING</span></div><p id="banner-desc">Waiting for the first system sample.</p></div></div><div class="banner-time"><span>MONITORING STATUS</span><strong id="machine">Local device</strong></div></div>
+      <div class="section-label"><h2>Live system metrics</h2><span>Auto-refreshes every 15 seconds</span></div>
+      <section class="metrics" aria-label="Live system health">
+        <article class="metric-card"><div class="card-top"><span>CPU USAGE</span><span class="metric-symbol cpu">⌘</span></div><div class="metric-number"><span id="cpu">—</span><span class="unit">%</span></div><div class="bar"><span id="cpu-bar" style="width:0%"></span></div><div class="metric-bottom"><span>Processor load</span><span id="cpu-state">Waiting</span></div></article>
+        <article class="metric-card"><div class="card-top"><span>MEMORY USAGE</span><span class="metric-symbol ram">▥</span></div><div class="metric-number"><span id="memory">—</span><span class="unit">%</span></div><div class="bar purple"><span id="memory-bar" style="width:0%"></span></div><div class="metric-bottom"><span id="memory-detail">RAM in use</span><span id="memory-state">Waiting</span></div></article>
+        <article class="metric-card"><div class="card-top"><span>DISK USAGE</span><span class="metric-symbol disk">▣</span></div><div class="metric-number"><span id="disk">—</span><span class="unit">%</span></div><div class="bar cyan"><span id="disk-bar" style="width:0%"></span></div><div class="metric-bottom"><span id="disk-detail">System drive</span><span id="disk-state">Waiting</span></div></article>
+        <article class="metric-card"><div class="card-top"><span>NETWORK TRAFFIC</span><span class="metric-symbol net">↗</span></div><div class="network-number"><span id="download">—</span><small>↓ DOWNLOAD / SEC</small></div><div class="network-number smallnet"><span id="upload">—</span><small>↑ UPLOAD / SEC</small></div></article>
+      </section>
+      <section class="two-col" id="performance">
+        <article class="panel performance-panel"><div class="panel-head"><div><div class="panel-kicker">PERFORMANCE</div><h2>System activity</h2><p>Historical CPU and memory usage</p></div><select aria-label="Select chart time range" id="window" class="range"><option value="30">Last 30 min</option><option value="120" selected>Last 2 hours</option><option value="1440">Last 24 hours</option><option value="10080">Last 7 days</option></select></div><div class="legend"><span><i class="legend-swatch cpu-swatch"></i> CPU usage</span><span><i class="legend-swatch memory-swatch"></i> Memory usage</span></div><div class="chart-wrap"><canvas id="activity-chart" width="900" height="320" role="img" aria-label="Historical CPU and memory usage line chart"></canvas><span id="chart-empty" class="chart-empty">Collecting activity samples…</span></div><div class="chart-footer"><span>0%</span><span>Utilization over time</span><span>100%</span></div></article>
+        <article class="panel alerts-panel"><div class="panel-head"><div><div class="panel-kicker">SYSTEM HEALTH</div><h2>Smart alerts</h2><p>Simple, actionable performance checks</p></div><span class="count-badge" id="alert-count">0</span></div><div class="alert-list" id="alerts"><div class="alert-okay"><span>✓</span><div><strong>No alerts to display</strong><small>We’ll flag issues when a system threshold is reached.</small></div></div></div><div class="alert-foot">Thresholds: CPU 90% · RAM 85% · Disk 90%</div></article>
+      </section>
+      <section class="two-col bottom-row">
+        <article class="panel processes-panel" id="processes"><div class="panel-head"><div><div class="panel-kicker">RESOURCE EXPLORER</div><h2>Top processes</h2><p>Applications using the most memory right now</p></div><span class="tag">READ ONLY</span></div><div class="table-scroller"><table><thead><tr><th>PROCESS</th><th>PID</th><th>MEMORY</th></tr></thead><tbody id="process-list"><tr><td colspan="3" class="table-empty">Loading processes…</td></tr></tbody></table></div></article>
+        <article class="panel security-panel" id="security"><div class="panel-head"><div><div class="panel-kicker">WINDOWS EVENT LOG</div><h2>Security signals</h2><p>Failed sign-in events in the past 24 hours</p></div><span class="security-icon">♢</span></div><div id="security-body" class="security-box"><div class="security-loading">Checking local Windows event access…</div></div><div class="security-disclaimer">An event is a signal to review, not proof your PC is compromised. Windows log access may be restricted.</div></article>
+      </section>
+      <footer>TechPulse <span>·</span> Built for transparency, not surveillance <span>·</span> Data stored locally for up to 7 days while monitoring runs <span>·</span> <a href="/api/docs" target="_blank" rel="noopener">API documentation</a></footer>
+    </div>
+  </main>
+</div>
+</body>
+</html>
