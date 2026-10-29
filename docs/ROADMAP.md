@@ -6,6 +6,7 @@
 - [x] Responsive browser dashboard with custom chart
 - [x] Threshold alerts with understandable advice
 - [x] API and UI sample freshness states, preventing stale saved readings from looking healthy
+- [x] Readiness-aware Windows launcher, dependency repair and clear startup failure handling (automated tests; real Windows-PC verification still pending)
 - [x] Top memory-consuming processes
 - [x] CSV export and REST endpoints
 - [x] Optional minimal Windows 4625 event view with access errors handled

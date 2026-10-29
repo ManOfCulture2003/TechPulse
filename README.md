@@ -22,13 +22,13 @@ Preview screenshot is included in the downloadable ZIP; source files live in thi
 
 1. Install **Python 3.11 or newer** from [python.org](https://www.python.org/downloads/) if you do not already have it. On the installer, enable **Add python.exe to PATH**.
 2. Unzip this repository to a regular folder, such as `Documents/TechPulse`.
-3. Double-click **`run_windows.bat`**. The first run creates `.venv` and installs dependencies from `requirements.txt` (internet needed once for the installation).
-4. Open **http://127.0.0.1:8765** in your browser. The batch launcher attempts to open it for you.
+3. Double-click **`run_windows.bat`**. The launcher checks Python 3.11+, creates an isolated `.venv`, and installs dependencies from `requirements.txt` on the first run (internet needed for installation). It also repairs missing packages or changed requirements on later runs.
+4. Wait for **`[TechPulse] Dashboard ready`**. Your browser opens only after the local API responds. If it does not open automatically, visit **http://127.0.0.1:8765**.
 5. Keep the command window open while monitoring. **Press Ctrl+C** or close the command window to stop.
 
 **Nothing is installed as a background service.** The app does not launch automatically when you turn on your PC.
 
-> If Python is not found, restart your terminal after installation and try again. If port 8765 is busy, stop the other process or run the manual command with a different port.
+> **Startup troubleshooting:** If Python is missing or older than 3.11, install/update it and restart the terminal. If port 8765 is busy, close the other app or use the manual command with a different port. If package installation fails, check your internet connection and the error shown in the command window. The launcher never opens the dashboard before the server reports ready, and exits with a nonzero status when startup fails.
 
 ## Run manually (Windows / macOS / Linux)
 
@@ -50,7 +50,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-Tests cover API responses, host-header restrictions, alert thresholds, history storage and export, data pruning and downsampling, system sampling, and event-log access failures. GitHub Actions is configured to run on Ubuntu and Windows when pushed to GitHub.
+Tests cover API responses, host-header restrictions, alert thresholds, history storage and export, data pruning and downsampling, system sampling, event-log access failures, and launcher startup/recovery behavior using isolated mocks (no browser or package installs during tests). GitHub Actions is configured to run on Ubuntu and Windows when pushed to GitHub.
 
 ## Project architecture
 
@@ -69,6 +69,7 @@ FastAPI REST endpoints
 | File | Purpose |
 | --- | --- |
 | `app/main.py` | Routes and background collector; the application's entry point. |
+| `launch.py` | Readiness-aware startup, local Python environment repair and helpful errors. |
 | `app/monitor.py` | Reads machine data and translates metric thresholds into useful alerts. |
 | `app/storage.py` | Persists metrics and queries trends safely using SQLite. |
 | `app/windows_events.py` | Optional read-only Windows event query; returns minimal data. |
