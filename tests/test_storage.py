@@ -1,4 +1,7 @@
 from datetime import datetime, timedelta, timezone
+import sqlite3
+
+import pytest
 from app.storage import HistoryStore
 
 
@@ -34,3 +37,31 @@ def test_insert_replacement_is_idempotent(tmp_path):
     one=datum(5)
     db.add(one);db.add(one)
     assert len(db.recent())==1
+
+
+def test_connection_commits_and_closes(tmp_path):
+    db = HistoryStore(tmp_path / 'data.db')
+    with db.connection() as conn:
+        conn.execute("CREATE TABLE marker (value INTEGER)")
+        conn.execute("INSERT INTO marker VALUES (7)")
+
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        conn.execute("SELECT 1")
+    with db.connection() as reopened:
+        assert reopened.execute("SELECT value FROM marker").fetchone()[0] == 7
+
+
+def test_connection_rolls_back_and_closes_on_error(tmp_path):
+    db = HistoryStore(tmp_path / 'data.db')
+    with db.connection() as setup:
+        setup.execute("CREATE TABLE marker (value INTEGER)")
+
+    with pytest.raises(RuntimeError, match="interrupted write"):
+        with db.connection() as conn:
+            conn.execute("INSERT INTO marker VALUES (7)")
+            raise RuntimeError("interrupted write")
+
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        conn.execute("SELECT 1")
+    with db.connection() as reopened:
+        assert reopened.execute("SELECT COUNT(*) FROM marker").fetchone()[0] == 0

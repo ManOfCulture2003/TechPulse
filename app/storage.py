@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import io
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -17,10 +18,17 @@ class HistoryStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.setup()
 
+    @contextmanager
     def connection(self):
+        """Commit or roll back each operation, then release its database handle."""
         conn = sqlite3.connect(self.path, timeout=5)
-        conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            conn.row_factory = sqlite3.Row
+            # SQLite's own context manager handles transactions, not closing.
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     def setup(self):
         with self.connection() as conn:
