@@ -14,6 +14,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .monitor import Monitor, compute_alerts, top_processes
 from .health_state import evaluate_sample_state
+from .collector_state import CollectorStatus
 from .storage import HistoryStore
 from .windows_events import read_failed_logins
 
@@ -25,23 +26,33 @@ LOG = logging.getLogger("techpulse")
 def create_app(db_path: Path | None = None, collect: bool = True, interval: int = 15) -> FastAPI:
     store = HistoryStore(db_path or DEFAULT_DB)
     monitor = Monitor()
+    collector_status = CollectorStatus(enabled=collect)
 
     async def collect_loop():
-        await asyncio.to_thread(monitor.prime)
-        await asyncio.sleep(.5)
         count = 0
-        while True:
-            try:
-                sample = await asyncio.to_thread(monitor.sample)
-                await asyncio.to_thread(store.add, sample)
-                count += 1
-                if count % 240 == 0:
-                    await asyncio.to_thread(store.prune)
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                LOG.exception("Sample failed; trying again on next interval")
-            await asyncio.sleep(interval)
+        primed = False
+        try:
+            while True:
+                try:
+                    if not primed:
+                        await asyncio.to_thread(monitor.prime)
+                        primed = True
+                        await asyncio.sleep(.5)
+                    sample = await asyncio.to_thread(monitor.sample)
+                    await asyncio.to_thread(store.add, sample)
+                    collector_status.succeeded()
+                    count += 1
+                    if count % 240 == 0:
+                        await asyncio.to_thread(store.prune)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    collector_status.failed()
+                    primed = False
+                    LOG.exception("Sample failed; trying again on next interval")
+                await asyncio.sleep(interval)
+        finally:
+            collector_status.stopped()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -53,6 +64,7 @@ def create_app(db_path: Path | None = None, collect: bool = True, interval: int 
                 await task
 
     app = FastAPI(title="TechPulse", version="0.1.0", lifespan=lifespan, docs_url="/api/docs", redoc_url=None)
+    app.state.collector_status = collector_status
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
     app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 
@@ -62,18 +74,22 @@ def create_app(db_path: Path | None = None, collect: bool = True, interval: int 
 
     @app.get("/api/health")
     def health():
-        return {"status": "ok", "version": "0.1.0", "local_only": True}
+        # "ok" means the HTTP server responds; inspect collector.state for sampling health.
+        return {"status": "ok", "version": "0.1.0", "local_only": True,
+                "collector": collector_status.snapshot()}
 
     @app.get("/api/overview")
     def overview():
         latest = store.latest()
         freshness = evaluate_sample_state(latest, interval_seconds=interval)
+        collector = collector_status.snapshot()
         if latest:
             latest["os_name"] = f"{platform.system()} {platform.release()}"
-        # A saved row is historical evidence, not proof the collector is running.
-        alerts = compute_alerts(latest) if freshness["state"] == "fresh" else []
+        # A recent SQLite row is not proof this process is still sampling.
+        live = freshness["state"] == "fresh" and collector["state"] == "running"
+        alerts = compute_alerts(latest) if live else []
         return {"sample": latest, "alerts": alerts, "interval_seconds": interval,
-                "collection": freshness}
+                "collection": freshness, "collector": collector}
 
     @app.get("/api/history")
     def history(minutes: int = Query(default=120, ge=10, le=10080)):

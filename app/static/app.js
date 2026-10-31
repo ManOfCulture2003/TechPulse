@@ -10,12 +10,16 @@ function setMetric(id,value,bar,alertAt,stateId){
   $(id).textContent=fmt(value);$(bar).style.width=`${Math.max(0,Math.min(100,value))}%`;
   $(stateId).textContent=value >= alertAt?'Needs attention':'Normal';$(stateId).classList.toggle('warning',value>=alertAt);
 }
-function renderOverview({sample,alerts,collection}){
+function renderOverview({sample,alerts,collection,collector}){
+  const collectorState=collector?.state || 'unknown';
   if (!sample) {
-    $('sync').textContent='Waiting for first sample…';
-    $('system-status').textContent='Waiting for first sample';
-    $('banner-desc').textContent='Metrics will appear after the first successful collection.';
-    $('banner-pill').textContent='WAITING';
+    const failed=collectorState==='error';
+    $('sync').textContent=failed?'Collection failed — retrying':'Waiting for first sample…';
+    $('system-status').textContent=failed?'Collector needs attention':'Waiting for first sample';
+    $('banner-desc').textContent=failed?'TechPulse could not collect metrics. Check the terminal for details.':'Metrics will appear after the first successful collection.';
+    $('banner-pill').textContent=failed?'CHECK DATA':'WAITING';
+    $('banner-pill').classList.toggle('warn',failed);
+    $('alert-count').textContent='—';
     return;
   }
   setMetric('cpu',sample.cpu_percent,'cpu-bar',90,'cpu-state');
@@ -28,12 +32,14 @@ function renderOverview({sample,alerts,collection}){
   $('machine').textContent=sample.os_name || 'Local device';
   $('sync').textContent=`Updated ${timeLabel(sample.timestamp)}`;
   const state=collection?.state || 'invalid';
-  if(state!=='fresh'){
+  if(state!=='fresh' || collectorState!=='running'){
     const outdated=state==='stale';
-    $('sync').textContent=outdated ? `Outdated reading (${collection.age_seconds}s old)` : 'Reading time unavailable';
-    $('system-status').textContent=outdated ? 'Monitoring data is outdated' : 'Monitoring data cannot be verified';
-    $('banner-desc').textContent='These saved values may not reflect your PC right now. Check the TechPulse terminal for collection errors.';
-    $('banner-pill').textContent=outdated ? 'OUTDATED' : 'CHECK DATA';
+    const failed=collectorState==='error';
+    const inactive=collectorState==='stopped' || collectorState==='disabled';
+    $('sync').textContent=outdated ? `Outdated reading (${collection.age_seconds}s old)` : failed?'Collection failed — retrying':inactive?'Collector is not running':state==='invalid'?'Reading time unavailable':'Waiting for fresh collection';
+    $('system-status').textContent=failed?'Collector needs attention':inactive?'Monitoring is not active':outdated?'Monitoring data is outdated':'Monitoring data cannot be verified';
+    $('banner-desc').textContent='Saved readings are historical until the collector successfully records a new sample. Check the TechPulse terminal if this persists.';
+    $('banner-pill').textContent=failed?'COLLECTOR ERROR':inactive?'INACTIVE':outdated?'OUTDATED':'CHECK DATA';
     $('banner-pill').classList.add('warn');
     ['cpu-state','memory-state','disk-state'].forEach(id=>{ $(id).textContent='Not current';$(id).classList.add('warning'); });
     $('alert-count').textContent='—';
@@ -66,7 +72,7 @@ function drawChart(){const canvas=$('activity-chart'), box=canvas.getBoundingCli
  if(!points.length)return;
  for(const [key,color] of [['cpu_percent','#5a9cff'],['memory_percent','#bb9afa']]){c.strokeStyle=color;c.lineWidth=2.3;c.lineJoin='round';c.lineCap='round';c.beginPath();points.forEach((p,i)=>{const x=pad.left+(points.length<=1?.5:i/(points.length-1))*pw;const y=pad.top+(1-Math.max(0,Math.min(100,Number(p[key])))/100)*ph;if(i===0)c.moveTo(x,y);else c.lineTo(x,y);});c.stroke();}
 }
-async function refreshMetrics(){if(isRefreshing)return;isRefreshing=true;try{const [overview,history,processes]=await Promise.all([getJson('/api/overview'),getJson(`/api/history?minutes=${$('window').value}`),getJson('/api/processes')]);renderOverview(overview);points=history.points||[];drawChart();renderProcesses(processes);}catch(e){$('sync').textContent='Connection lost — retrying';console.error('TechPulse refresh:',e);}finally{isRefreshing=false;}}
+async function refreshMetrics(){if(isRefreshing)return;isRefreshing=true;try{const [overview,history,processes]=await Promise.all([getJson('/api/overview'),getJson(`/api/history?minutes=${$('window').value}`),getJson('/api/processes')]);renderOverview(overview);points=history.points||[];drawChart();renderProcesses(processes);}catch(e){$('sync').textContent='Connection lost — retrying';$('system-status').textContent='Dashboard connection lost';$('banner-desc').textContent='Current system health cannot be verified until the connection recovers.';$('banner-pill').textContent='OFFLINE';$('banner-pill').classList.add('warn');$('alert-count').textContent='—';['cpu-state','memory-state','disk-state'].forEach(id=>$(id).textContent='Not current');console.error('TechPulse refresh:',e);}finally{isRefreshing=false;}}
 async function refreshSecurity(){try{renderSecurity(await getJson('/api/security'));}catch(e){renderSecurity({status:'unavailable',message:'Could not fetch security events.'});}}
 $('refresh').addEventListener('click',()=>{refreshMetrics();refreshSecurity();});
 $('window').addEventListener('change',refreshMetrics);
