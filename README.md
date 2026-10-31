@@ -12,7 +12,7 @@ Preview screenshot is included in the downloadable ZIP; source files live in thi
 
 - Monitors live **CPU, RAM, system disk, and network rates** every 15 seconds while running.
 - Saves samples in a local SQLite database; displays trends over 30 minutes, 2 hours, 24 hours or 7 days.
-- Flags explainable resource thresholds (CPU >= 90%, RAM >= 85%, disk >= 90%) **only for fresh readings**. Old samples are visibly labeled as outdated instead of reported as healthy.
+- Flags explainable resource thresholds (CPU >= 90%, RAM >= 85%, disk >= 90%) **only when the local collector is running and readings are fresh**. Old samples, collection failures, and disconnected dashboards cannot be reported as healthy.
 - Lists the top seven running processes by resident memory, without any ability to kill them.
 - Optionally shows the **25 most recent Windows Security event 4625 failed-sign-in records from the previous 24 hours**, where permitted. Only event IDs and timestamps are returned.
 - Exports collected history as CSV; provides a small documented REST API at `/api/docs`.
@@ -81,8 +81,8 @@ FastAPI REST endpoints
 
 | Endpoint | Output |
 | --- | --- |
-| `GET /api/health` | Basic health check. |
-| `GET /api/overview` | Latest system metrics, collection freshness (`fresh`, `waiting`, `stale`, `invalid`), and alerts only for fresh readings. |
+| `GET /api/health` | API liveness and separate collector status (starting, running, error, stopped, disabled). |
+| `GET /api/overview` | Latest metrics, timestamp freshness (`fresh`, `waiting`, `stale`, `invalid`), collector state, and live alerts only when both checks pass. |
 | `GET /api/history?minutes=120` | Downsampled metric history (10–10,080 minutes). |
 | `GET /api/processes` | Top seven processes by RAM. |
 | `GET /api/security` | Optional Windows 4625 events or an access explanation. |
@@ -101,7 +101,7 @@ FastAPI REST endpoints
 
 ## Limits
 
-- Sampling only occurs while the app is open. Monitoring is not continuous after the terminal closes. Previously stored samples are marked outdated after three missed collection intervals (minimum 45 seconds), so historical values are not mistaken for current system health.
+- Sampling only occurs while the app is open. Monitoring is not continuous after the terminal closes. Previously stored samples are marked outdated after three missed collection intervals (minimum 45 seconds); even a recent stored row cannot be labeled healthy unless the current collector has succeeded. Collector failures are reported separately from HTTP-server liveness.
 - The first CPU reading is intentionally primed before sampling; network readings are rates between two counter samples.
 - The Security panel is Windows-specific and may lack permission even on Windows. The MVP does not monitor firewall rules or antivirus status.
 - This is not an agent deployed across enterprise machines, not a threat-detection model, and not a production hardening tool.

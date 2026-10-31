@@ -20,7 +20,9 @@ def sample(timestamp=None, **kw):
 
 def test_health_and_home(tmp_path):
     with TestClient(create_app(tmp_path / "app.sqlite", collect=False), base_url="http://localhost") as client:
-        assert client.get("/api/health").json()["local_only"] is True
+        health = client.get("/api/health").json()
+        assert health["local_only"] is True
+        assert health["collector"]["state"] == "disabled"
         assert "TechPulse" in client.get("/").text
         assert client.get("/api/overview").json()["sample"] is None
 
@@ -77,10 +79,35 @@ def test_overview_discloses_stale_values_without_live_alerts(tmp_path):
         assert result["alerts"] == []
 
 
-def test_overview_fresh_values_still_generate_alerts(tmp_path):
+def test_recent_database_row_does_not_imply_live_collection(tmp_path):
     db = tmp_path / "fresh.sqlite"
     HistoryStore(db).add(sample(cpu_percent=99))
     with TestClient(create_app(db, collect=False, interval=15), base_url="http://localhost") as client:
         result = client.get("/api/overview").json()
         assert result["collection"]["state"] == "fresh"
+        assert result["collector"]["state"] == "disabled"
+        assert result["alerts"] == []
+
+
+def test_live_collector_allows_current_threshold_alerts(tmp_path):
+    db = tmp_path / "running.sqlite"
+    HistoryStore(db).add(sample(cpu_percent=99))
+    with TestClient(create_app(db, collect=False, interval=15), base_url="http://localhost") as client:
+        # Simulate a successful collection without starting the background worker.
+        client.app.state.collector_status.succeeded()
+        result = client.get("/api/overview").json()
+        assert result["collector"]["state"] == "running"
         assert result["alerts"][0]["code"] == "cpu_percent"
+
+
+def test_collector_failure_suppresses_recent_threshold_alerts(tmp_path):
+    db = tmp_path / "error.sqlite"
+    HistoryStore(db).add(sample(cpu_percent=99))
+    with TestClient(create_app(db, collect=False, interval=15), base_url="http://localhost") as client:
+        client.app.state.collector_status.succeeded()
+        client.app.state.collector_status.failed()
+        result = client.get("/api/overview").json()
+        assert result["collector"]["state"] == "error"
+        assert result["collector"]["consecutive_failures"] == 1
+        assert result["alerts"] == []
+        assert client.get("/api/health").json()["status"] == "ok"
