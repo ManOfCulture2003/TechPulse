@@ -76,3 +76,63 @@ class HistoryStore:
         for row in rows:
             writer.writerow([row[col] for col in COLUMNS])
         return output.getvalue()
+
+    def summary(self, minutes: int = 60, interval_seconds: int = 15, *, now: datetime | None = None) -> dict:
+        """Summarize a bounded window using SQLite, without exporting raw readings.
+
+        Gap counts are timestamp-based estimates, not proof of collector uptime.
+        A gap is counted when adjacent samples are separated by at least two
+        expected collection intervals (minimum 30 seconds).
+        """
+        if not 10 <= minutes <= 1440:
+            raise ValueError("minutes must be between 10 and 1440")
+        if not 1 <= interval_seconds <= 3600:
+            raise ValueError("interval_seconds must be between 1 and 3600")
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            raise ValueError("now must have a time zone")
+        current = current.astimezone(timezone.utc)
+        start = (current - timedelta(minutes=minutes)).isoformat(timespec="seconds")
+        end = current.isoformat(timespec="seconds")
+        gap_threshold = max(30, 2 * interval_seconds)
+        with self.connection() as conn:
+            metrics = conn.execute("""
+                SELECT COUNT(*) AS sample_count,
+                       MIN(timestamp) AS first_sample_at,
+                       MAX(timestamp) AS last_sample_at,
+                       ROUND(AVG(cpu_percent), 1) AS avg_cpu_percent,
+                       MAX(cpu_percent) AS max_cpu_percent,
+                       ROUND(AVG(memory_percent), 1) AS avg_memory_percent,
+                       MAX(memory_percent) AS max_memory_percent,
+                       ROUND(AVG(disk_percent), 1) AS avg_disk_percent,
+                       MAX(disk_percent) AS max_disk_percent
+                FROM samples WHERE timestamp >= ? AND timestamp <= ?
+            """, (start, end)).fetchone()
+            gaps = conn.execute("""
+                WITH ordered AS (
+                    SELECT CAST(strftime('%s', timestamp) AS INTEGER) AS epoch,
+                           LAG(CAST(strftime('%s', timestamp) AS INTEGER))
+                               OVER (ORDER BY timestamp) AS previous_epoch
+                    FROM samples WHERE timestamp >= ? AND timestamp <= ?
+                )
+                SELECT COUNT(*) AS large_gap_count,
+                       MAX(epoch - previous_epoch) AS longest_gap_seconds
+                FROM ordered
+                WHERE previous_epoch IS NOT NULL
+                  AND epoch - previous_epoch >= ?
+            """, (start, end, gap_threshold)).fetchone()
+        return {
+            "window_minutes": minutes,
+            "sample_count": metrics["sample_count"],
+            "first_sample_at": metrics["first_sample_at"],
+            "last_sample_at": metrics["last_sample_at"],
+            "avg_cpu_percent": metrics["avg_cpu_percent"],
+            "max_cpu_percent": metrics["max_cpu_percent"],
+            "avg_memory_percent": metrics["avg_memory_percent"],
+            "max_memory_percent": metrics["max_memory_percent"],
+            "avg_disk_percent": metrics["avg_disk_percent"],
+            "max_disk_percent": metrics["max_disk_percent"],
+            "large_gap_count": gaps["large_gap_count"],
+            "longest_gap_seconds": gaps["longest_gap_seconds"] or 0,
+            "gap_threshold_seconds": gap_threshold,
+        }

@@ -33,7 +33,7 @@
     <div class="content">
       <div class="welcome">
         <div><div class="eyebrow"><span class="eyebrow-line"></span> SYSTEM MONITORING</div><h1>Your PC, at a glance<span class="headline-period">.</span></h1><p>A clearer picture of your system's performance, health, and activity.</p></div>
-        <div class="header-actions"><a class="btn btn-secondary" href="/api/export.csv" download><span>↓</span> Export data</a><button id="refresh" class="btn btn-primary" type="button">↻ &nbsp; Refresh now</button></div>
+        <div class="header-actions"><a class="btn btn-secondary" href="/api/export.csv" download><span>↓</span> Export data</a><a class="btn btn-secondary" href="/api/diagnostics.json?minutes=60" download><span>↓</span> Diagnostics</a><button id="refresh" class="btn btn-primary" type="button">↻ &nbsp; Refresh now</button></div>
       </div>
       <div class="system-banner"><div class="banner-left"><div class="banner-symbol">✳</div><div><div class="banner-title"><span id="system-status">Starting monitor</span><span id="banner-pill" class="pill success">CHECKING</span></div><p id="banner-desc">Waiting for the first system sample.</p></div></div><div class="banner-time"><span>MONITORING STATUS</span><strong id="machine">Local device</strong></div></div>
       <div class="section-label"><h2>Live system metrics</h2><span>Auto-refreshes every 15 seconds</span></div>
