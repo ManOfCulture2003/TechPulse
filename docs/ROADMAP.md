@@ -10,6 +10,7 @@
 - [x] Readiness-aware Windows launcher, dependency repair and clear startup failure handling (automated tests; real Windows-PC verification still pending)
 - [x] Top memory-consuming processes
 - [x] CSV export and REST endpoints
+- [x] Privacy-minimized downloadable diagnostic JSON report with SQL aggregate summaries and historical sampling-gap estimates
 - [x] Optional minimal Windows 4625 event view with access errors handled
 - [x] Automated tests and GitHub Actions configuration
 - [ ] **Validate installation and Windows event query on the owner's actual PC**

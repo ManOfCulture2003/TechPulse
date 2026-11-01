@@ -5,10 +5,11 @@ import logging
 import os
 import platform
 from contextlib import asynccontextmanager, suppress
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Query
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -102,6 +103,36 @@ def create_app(db_path: Path | None = None, collect: bool = True, interval: int 
     @app.get("/api/security")
     def security():
         return read_failed_logins()
+
+
+    @app.get("/api/diagnostics.json")
+    def diagnostics(minutes: int = Query(default=60, ge=10, le=1440)):
+        """Download privacy-minimized, historical system metrics for troubleshooting."""
+        latest = store.latest()
+        freshness = evaluate_sample_state(latest, interval_seconds=interval)
+        collector = collector_status.snapshot()
+        live = freshness["state"] == "fresh" and collector["state"] == "running"
+        report = {
+            "schema_version": 1,
+            "report_type": "local_metrics_diagnostic",
+            "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "collector": collector,
+            "latest_reading": {
+                "state": freshness["state"],
+                "age_seconds": freshness["age_seconds"],
+                "live_metrics_available": live,
+            },
+            "history": store.summary(minutes=minutes, interval_seconds=interval),
+            "privacy_note": "No usernames, IP addresses, file paths, process names, device IDs, or Windows event details are included.",
+            "limitations": "Historical metrics and sampling gaps are not a security audit or proof of uninterrupted monitoring.",
+        }
+        return JSONResponse(
+            report,
+            headers={
+                "Content-Disposition": 'attachment; filename="techpulse-diagnostics.json"',
+                "Cache-Control": "no-store",
+            },
+        )
 
     @app.get("/api/export.csv")
     def export_csv():
