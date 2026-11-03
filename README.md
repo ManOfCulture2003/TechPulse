@@ -15,7 +15,7 @@ Preview screenshot is included in the downloadable ZIP; source files live in thi
 - Flags explainable resource thresholds (CPU >= 90%, RAM >= 85%, disk >= 90%) **only when the local collector is running and readings are fresh**. Old samples, collection failures, and disconnected dashboards cannot be reported as healthy.
 - Lists the top seven running processes by resident memory, without any ability to kill them.
 - Optionally shows the **25 most recent Windows Security event 4625 failed-sign-in records from the previous 24 hours**, where permitted. Only event IDs and timestamps are returned.
-- Exports collected history as CSV, plus a **privacy-minimized JSON diagnostic report** with 60-minute CPU/RAM/disk summaries, sample gaps and collector status. No process names, usernames, IPs or device identifiers are included in the report.
+- Exports a **bounded 10-minute to 7-day CSV history window** (default seven days), plus a **privacy-minimized JSON diagnostic report** with 60-minute CPU/RAM/disk summaries, sample gaps and collector status. No process names, usernames, IPs or device identifiers are included in the report.
 - Provides a small documented REST API at `/api/docs`.
 - Uses no cloud services, analytics SDKs or paid APIs. All assets and data processing run locally.
 
@@ -87,7 +87,7 @@ FastAPI REST endpoints
 | `GET /api/history?minutes=120` | Downsampled metric history (10–10,080 minutes). |
 | `GET /api/processes` | Top seven processes by RAM. |
 | `GET /api/security` | Optional Windows 4625 events or an access explanation. |
-| `GET /api/export.csv` | Numeric system metrics as a CSV download. |
+| `GET /api/export.csv?minutes=10080` | UTC-window-filtered numeric system metrics as a CSV download (10–10,080 minutes; default seven days). |
 | `GET /api/diagnostics.json?minutes=60` | Download privacy-minimized JSON diagnostics for 10–1,440 minutes, including summary metrics, sampling gaps, and collector state. |
 | `GET /api/docs` | Generated interactive API docs. |
 
@@ -98,7 +98,7 @@ FastAPI REST endpoints
 - No raw usernames, Windows event messages, visited websites, browser histories, passwords, personal files, or IP addresses are collected.
 - Process list is only viewed on demand; it is **not written** to SQLite.
 - The downloadable JSON diagnostic report contains aggregated system percentages, timestamp-based sampling gaps, and collector status. It omits usernames, IP addresses, process names, file paths, device identifiers and Windows event details. Inspect the report before sharing because timestamps and performance patterns may still reveal usage habits.
-- Metrics stay in `data/techpulse.sqlite3`, which is excluded from Git. The default retention is seven days; old records are pruned periodically while the monitor runs.
+- Metrics stay in `data/techpulse.sqlite3`, which is excluded from Git. The default retention is seven days; old records are pruned on every application startup (including demo mode) and periodically while the monitor runs.
 - The Windows security feature may require additional Windows permissions; failure is shown as unavailable instead of pretending the system is safe.
 - A failed Windows sign-in (4625) may have innocent explanations. TechPulse does **not** claim to detect attacks or malware.
 
