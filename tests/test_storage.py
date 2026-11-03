@@ -24,7 +24,9 @@ def test_downsample_preserves_endpoints(tmp_path):
 
 def test_prune_old_history(tmp_path):
     db=HistoryStore(tmp_path/'data.db')
-    db.add(datum(1))
+    # Completed past sample; future-dated records must not appear in exports.
+    current = (datetime.now(timezone.utc) - timedelta(seconds=2)).isoformat(timespec="seconds")
+    db.add(datum(1, timestamp=current))
     older=(datetime.now(timezone.utc)-timedelta(days=10)).isoformat(timespec='seconds')
     db.add(datum(99,timestamp=older))
     db.prune(7)
