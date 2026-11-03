@@ -119,7 +119,7 @@ def test_csv_api_window_and_download_headers(tmp_path):
     old = (datetime.now(timezone.utc) - timedelta(minutes=60)).isoformat(timespec="seconds")
     store.add(sample(timestamp=old, cpu_percent=11))
     store.add(sample(cpu_percent=42))
-    with TestClient(create_app(db, collect=False)) as client:
+    with TestClient(create_app(db, collect=False), base_url="http://localhost") as client:
         response = client.get("/api/export.csv?minutes=10")
         assert response.status_code == 200
         assert "42.0" in response.text
@@ -136,7 +136,7 @@ def test_retention_pruned_on_start_even_without_collector(tmp_path):
     old = (datetime.now(timezone.utc) - timedelta(days=9)).isoformat(timespec="seconds")
     store.add(sample(timestamp=old, cpu_percent=11))
     store.add(sample(cpu_percent=42))
-    with TestClient(create_app(db, collect=False)) as client:
+    with TestClient(create_app(db, collect=False), base_url="http://localhost") as client:
         assert client.get("/api/overview").json()["sample"]["cpu_percent"] == 42
     with store.connection() as conn:
         assert conn.execute("SELECT COUNT(*) FROM samples").fetchone()[0] == 1
