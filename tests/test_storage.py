@@ -65,3 +65,32 @@ def test_connection_rolls_back_and_closes_on_error(tmp_path):
         conn.execute("SELECT 1")
     with db.connection() as reopened:
         assert reopened.execute("SELECT COUNT(*) FROM marker").fetchone()[0] == 0
+
+
+def test_csv_export_window_excludes_old_and_future_records(tmp_path):
+    import csv
+    import io
+    db = HistoryStore(tmp_path / "data.db")
+    now = datetime(2026, 11, 3, 20, 0, tzinfo=timezone.utc)
+    db.add(datum(1, timestamp=(now - timedelta(minutes=30)).isoformat(timespec="seconds")))
+    db.add(datum(2, timestamp=(now - timedelta(minutes=5)).isoformat(timespec="seconds")))
+    db.add(datum(3, timestamp=(now + timedelta(minutes=5)).isoformat(timespec="seconds")))
+    records = list(csv.DictReader(io.StringIO(db.csv_export(minutes=10, now=now))))
+    assert len(records) == 1
+    assert float(records[0]["cpu_percent"]) == 2
+
+
+def test_csv_export_rejects_invalid_windows_and_naive_clock(tmp_path):
+    db = HistoryStore(tmp_path / "data.db")
+    for minutes in (0, 9, 10081):
+        with pytest.raises(ValueError, match="minutes"):
+            db.csv_export(minutes=minutes)
+    with pytest.raises(ValueError, match="time zone"):
+        db.csv_export(now=datetime(2026, 11, 3))
+
+
+def test_csv_export_empty_window_has_headers(tmp_path):
+    db = HistoryStore(tmp_path / "data.db")
+    lines = db.csv_export(minutes=10).splitlines()
+    assert len(lines) == 1
+    assert lines[0].startswith("timestamp,cpu_percent")

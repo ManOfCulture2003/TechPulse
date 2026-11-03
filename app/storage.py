@@ -67,14 +67,27 @@ class HistoryStore:
         with self.connection() as conn:
             conn.execute("DELETE FROM samples WHERE timestamp < ?", (since,))
 
-    def csv_export(self) -> str:
-        with self.connection() as conn:
-            rows = conn.execute("SELECT * FROM samples ORDER BY timestamp ASC").fetchall()
+    def csv_export(self, minutes: int = 10080, *, now: datetime | None = None) -> str:
+        """Export a bounded UTC time window; exclude future-dated records."""
+        if not 10 <= minutes <= 10080:
+            raise ValueError("minutes must be between 10 and 10080")
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            raise ValueError("now must have a time zone")
+        current = current.astimezone(timezone.utc)
+        start = (current - timedelta(minutes=minutes)).isoformat(timespec="seconds")
+        end = current.isoformat(timespec="seconds")
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(COLUMNS)
-        for row in rows:
-            writer.writerow([row[col] for col in COLUMNS])
+        with self.connection() as conn:
+            # Iterate rows rather than fetching all history into a Python list.
+            rows = conn.execute(
+                "SELECT * FROM samples WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp ASC",
+                (start, end),
+            )
+            for row in rows:
+                writer.writerow([row[col] for col in COLUMNS])
         return output.getvalue()
 
     def summary(self, minutes: int = 60, interval_seconds: int = 15, *, now: datetime | None = None) -> dict:
