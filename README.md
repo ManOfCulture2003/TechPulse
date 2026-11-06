@@ -113,7 +113,7 @@ FastAPI REST endpoints
 
 ## Next engineering milestones
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for advanced features and [`docs/INTERVIEW_GUIDE.md`](docs/INTERVIEW_GUIDE.md) for demo and interview explanations.
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned features and engineering milestones.
 
 ## Credits
 
