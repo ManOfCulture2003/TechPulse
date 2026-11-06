@@ -58,11 +58,13 @@ def create_app(db_path: Path | None = None, collect: bool = True, interval: int 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         task = asyncio.create_task(collect_loop()) if collect else None
-        yield
-        if task:
-            task.cancel()
-            with suppress(asyncio.CancelledError):
-                await task
+        try:
+            yield
+        finally:
+            if task:
+                task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await task
 
     app = FastAPI(title="TechPulse", version="0.1.0", lifespan=lifespan, docs_url="/api/docs", redoc_url=None)
     app.state.collector_status = collector_status
