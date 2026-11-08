@@ -28,7 +28,9 @@ class Monitor:
         self.previous_tick = time.monotonic()
 
     def sample(self) -> dict:
-        cpu = round(psutil.cpu_percent(interval=None), 1)
+        # A blocking interval measures on this worker thread. asyncio.to_thread
+        # may switch threads, so a baseline primed elsewhere is not reliable.
+        cpu = round(psutil.cpu_percent(interval=0.2), 1)
         memory = psutil.virtual_memory()
         anchor = Path.home().anchor if os.name == "nt" else "/"
         try:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -41,6 +42,12 @@ class HistoryStore:
             )""")
 
     def add(self, sample: dict):
+        for key in COLUMNS[1:]:
+            value = sample.get(key)
+            if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+                raise ValueError(f"Unavailable or invalid measurement: {key}")
+            if key.endswith('_percent') and value > 100:
+                raise ValueError(f"Percentage out of range: {key}")
         vals = tuple(sample[key] for key in COLUMNS)
         placeholders = ",".join("?" for _ in COLUMNS)
         with self.connection() as conn:

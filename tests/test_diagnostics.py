@@ -60,6 +60,7 @@ def test_diagnostics_download_has_safe_shape_and_no_raw_device_data(tmp_path):
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     })
     with TestClient(create_app(db, collect=False), base_url="http://localhost") as client:
+        assert client.post("/auth/login", json={"key": client.app.state.access.key}).status_code == 200
         response = client.get("/api/diagnostics.json?minutes=60")
         assert response.status_code == 200
         assert response.headers["content-type"] == "application/json"
@@ -86,6 +87,7 @@ def test_diagnostics_reports_live_state_only_after_collector_success(tmp_path):
     sample["timestamp"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     HistoryStore(db).add(sample)
     with TestClient(create_app(db, collect=False), base_url="http://localhost") as client:
+        assert client.post("/auth/login", json={"key": client.app.state.access.key}).status_code == 200
         assert client.get("/api/diagnostics.json").json()["latest_reading"]["live_metrics_available"] is False
         client.app.state.collector_status.succeeded()
         report = client.get("/api/diagnostics.json").json()
@@ -95,6 +97,7 @@ def test_diagnostics_reports_live_state_only_after_collector_success(tmp_path):
 
 def test_diagnostics_validates_window_and_rejects_untrusted_host(tmp_path):
     with TestClient(create_app(tmp_path / "db.sqlite", collect=False), base_url="http://localhost") as client:
+        assert client.post("/auth/login", json={"key": client.app.state.access.key}).status_code == 200
         assert client.get("/api/diagnostics.json?minutes=9").status_code == 422
         assert client.get("/api/diagnostics.json?minutes=1441").status_code == 422
         assert client.get("/api/diagnostics.json", headers={"host": "evil.example"}).status_code == 400

@@ -18,13 +18,15 @@ from .health_state import evaluate_sample_state
 from .collector_state import CollectorStatus
 from .storage import HistoryStore
 from .windows_events import read_failed_logins
+from .access import LocalAccess, BodyLimit
+from .paths import data_directory
 
 BASE = Path(__file__).resolve().parent
-DEFAULT_DB = Path(os.environ.get("TECHPULSE_DB", str(BASE.parent / "data" / "techpulse.sqlite3")))
+DEFAULT_DB = Path(os.environ.get("TECHPULSE_DB", str(data_directory() / "techpulse.sqlite3")))
 LOG = logging.getLogger("techpulse")
 
 
-def create_app(db_path: Path | None = None, collect: bool = True, interval: int = 15) -> FastAPI:
+def create_app(db_path: Path | None = None, collect: bool = True, interval: int = 15, access_key=None) -> FastAPI:
     store = HistoryStore(db_path or DEFAULT_DB)
     monitor = Monitor()
     collector_status = CollectorStatus(enabled=collect)
@@ -57,6 +59,7 @@ def create_app(db_path: Path | None = None, collect: bool = True, interval: int 
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        print("[TechPulse] Local access key (keep private): " + app.state.access.key, flush=True)
         task = asyncio.create_task(collect_loop()) if collect else None
         try:
             yield
@@ -68,12 +71,19 @@ def create_app(db_path: Path | None = None, collect: bool = True, interval: int 
 
     app = FastAPI(title="TechPulse", version="0.1.0", lifespan=lifespan, docs_url="/api/docs", redoc_url=None)
     app.state.collector_status = collector_status
+    app.state.access = LocalAccess("techpulse", BASE / "static", access_key)
+    app.add_middleware(BodyLimit)
+    app.middleware("http")(app.state.access.guard)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
     app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 
     @app.get("/", include_in_schema=False)
     def home():
         return FileResponse(BASE / "static" / "index.html")
+
+    @app.get("/healthz", include_in_schema=False)
+    def readiness():
+        return {"status": "ok", "local_only": True}
 
     @app.get("/api/health")
     def health():

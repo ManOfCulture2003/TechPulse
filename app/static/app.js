@@ -5,7 +5,7 @@ let isRefreshing = false;
 const fmt = (n, decimals=1) => Number(n).toFixed(decimals);
 const formatRate = (bps) => { const n = Math.max(0, Number(bps)||0); return n >= 1048576 ? `${fmt(n/1048576)} MB/s` : n >= 1024 ? `${fmt(n/1024)} KB/s` : `${Math.round(n)} B/s`; };
 const timeLabel = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? 'Unknown' : d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); };
-const getJson = async (url) => { const resp=await fetch(url,{cache:'no-store'}); if(!resp.ok) throw new Error(`HTTP ${resp.status}`); return resp.json(); };
+const getJson = async (url) => { const resp=await fetch(url,{cache:'no-store'}); if(resp.status===401){location.replace('/');throw new Error('Session expired');} if(!resp.ok) throw new Error(`HTTP ${resp.status}`); return resp.json(); };
 function setMetric(id,value,bar,alertAt,stateId){
   $(id).textContent=fmt(value);$(bar).style.width=`${Math.max(0,Math.min(100,value))}%`;
   $(stateId).textContent=value >= alertAt?'Needs attention':'Normal';$(stateId).classList.toggle('warning',value>=alertAt);
@@ -13,6 +13,11 @@ function setMetric(id,value,bar,alertAt,stateId){
 function renderOverview({sample,alerts,collection,collector}){
   const collectorState=collector?.state || 'unknown';
   if (!sample) {
+    ['cpu','memory','disk','download','upload'].forEach(id=>$(id).textContent='—');
+    ['cpu-state','memory-state','disk-state'].forEach(id=>$(id).textContent='Unavailable');
+    ['cpu-bar','memory-bar','disk-bar'].forEach(id=>$(id).style.width='0%');
+    $('memory-detail').textContent='No reading';$('disk-detail').textContent='No reading';
+    $('alerts').replaceChildren();
     const failed=collectorState==='error';
     $('sync').textContent=failed?'Collection failed — retrying':'Waiting for first sample…';
     $('system-status').textContent=failed?'Collector needs attention':'Waiting for first sample';
@@ -51,13 +56,13 @@ function renderOverview({sample,alerts,collection,collector}){
   }
   ['cpu-state','memory-state','disk-state'].forEach(id=>$(id).classList.remove('warning'));
   const healthy=alerts.length===0;
-  $('system-status').textContent=healthy?'Your system looks healthy':'Your system needs attention';
+  $('system-status').textContent=healthy?'Resource usage is within limits':'Your system needs attention';
   $('banner-desc').textContent=healthy?'No resource thresholds are being exceeded right now.':`${alerts.length} performance threshold${alerts.length===1?' is':'s are'} exceeded. Review the alerts below.`;
-  $('banner-pill').textContent=healthy?'HEALTHY':'REVIEW';
+  $('banner-pill').textContent=healthy?'WITHIN LIMITS':'REVIEW';
   $('banner-pill').classList.toggle('warn',!healthy);
   $('alert-count').textContent=String(alerts.length);
   const root=$('alerts');root.replaceChildren();
-  if(healthy){const container=document.createElement('div');container.className='alert-okay'; const check=document.createElement('span'); check.textContent='✓';const div=document.createElement('div'); const strong=document.createElement('strong');strong.textContent='All checks passed';const small=document.createElement('small'); small.textContent='CPU, memory, and storage are below alert thresholds.';div.append(strong,small);container.append(check,div);root.append(container);return;}
+  if(healthy){const container=document.createElement('div');container.className='alert-okay'; const check=document.createElement('span'); check.textContent='✓';const div=document.createElement('div'); const strong=document.createElement('strong');strong.textContent='Resource checks passed';const small=document.createElement('small'); small.textContent='CPU, memory, and storage are below alert thresholds.';div.append(strong,small);container.append(check,div);root.append(container);return;}
   for(const a of alerts){const item=document.createElement('div');item.className='alert-item'; const icon=document.createElement('span');icon.className='alert-icon'; icon.textContent='⚠';const text=document.createElement('div');const strong=document.createElement('strong');strong.textContent=a.title;const small=document.createElement('small');small.textContent=`${a.detail} ${a.advice}`;text.append(strong,small);item.append(icon,text);root.append(item);}
 }
 function renderProcesses(data){const root=$('process-list');root.replaceChildren();for(const proc of data.processes||[]){const tr=document.createElement('tr');const name=document.createElement('td');const dot=document.createElement('span');dot.className='process-dot';const label=document.createElement('span');label.className='process-name';label.textContent=proc.name;name.append(dot,label);const pid=document.createElement('td');pid.textContent=String(proc.pid);const mem=document.createElement('td');mem.textContent=`${fmt(proc.memory_mb)} MB`;tr.append(name,pid,mem);root.append(tr);}if(!root.children.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=3;td.textContent='No process information available';tr.append(td);root.append(tr);}}
@@ -78,3 +83,5 @@ $('refresh').addEventListener('click',()=>{refreshMetrics();refreshSecurity();})
 $('window').addEventListener('change',refreshMetrics);
 window.addEventListener('resize',drawChart);
 refreshMetrics();refreshSecurity();setInterval(refreshMetrics,15000);setInterval(refreshSecurity,120000);
+
+document.getElementById('lock').addEventListener('click', async()=>{await fetch('/auth/logout',{method:'POST'});location.replace('/');});

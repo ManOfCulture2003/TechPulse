@@ -1,12 +1,12 @@
 # TechPulse — PC Health & Security Monitor
 
+[Try the browser demo](https://ManOfCulture2003.github.io/TechPulse/) · No login · Clearly labeled sample data
+
+The demo runs in your browser. To work with real data from your own computer, use the local app below. The public demo never connects to your local app.
+
 **A private, local-first Windows-friendly system health dashboard.** A practical Python portfolio application for software development, IT support, analytics and junior security roles.
 
-> **MVP status (October 2026):** Core metrics and dashboard were exercised in a Linux test environment; automated tests passed there. The Windows Event Log integration and Windows batch launcher have **not yet been end-to-end tested on a Windows PC**. It is an educational diagnostic tool, not an antivirus or a production SIEM.
-
-**Dashboard preview (Linux development environment, not a Windows verification):**
-
-Preview screenshot is included in the downloadable ZIP; source files live in this GitHub repository.
+> Core metrics and the authenticated dashboard have been checked on Windows. This is a local diagnostic tool, not an antivirus or a production SIEM. Optional Security-log access depends on the Windows account and audit configuration.
 
 ## What it does
 
@@ -25,7 +25,7 @@ Preview screenshot is included in the downloadable ZIP; source files live in thi
 2. Unzip this repository to a regular folder, such as `Documents/TechPulse`.
 3. Double-click **`run_windows.bat`**. The launcher checks Python 3.11+, creates an isolated `.venv`, and installs dependencies from `requirements.txt` on the first run (internet needed for installation). It also repairs missing packages or changed requirements on later runs.
 4. Wait for **`[TechPulse] Dashboard ready`**. Your browser opens only after the local API responds. If it does not open automatically, visit **http://127.0.0.1:8765**.
-5. Keep the command window open while monitoring. **Press Ctrl+C** or close the command window to stop.
+5. Enter the access key printed in the terminal to unlock the dashboard. Keep the command window open while monitoring. **Press Ctrl+C** or close the command window to stop.
 
 **Nothing is installed as a background service.** The app does not launch automatically when you turn on your PC.
 
@@ -42,7 +42,7 @@ python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8765
 ```
 
-Open http://127.0.0.1:8765. The web interface is served from the local app; do not use `--host 0.0.0.0` on a machine you want to keep private.
+Open http://127.0.0.1:8765 and enter the access key printed in the terminal. The web interface is served from the local app; do not use `--host 0.0.0.0` on a machine you want to keep private.
 
 ## Testing
 
@@ -94,27 +94,33 @@ FastAPI REST endpoints
 ## Privacy and security model
 
 - Start commands bind to **localhost** (`127.0.0.1`), not a public network interface. Requests with unexpected Host headers are rejected.
-- No authentication is supplied because the intended deployment is **one user on their own computer**. Do not expose this prototype to your LAN or the internet.
+- The local app requires the access key printed in its terminal. Sessions expire after eight hours or a restart. **Lock workspace** signs out the current browser. This remains **one user on their own computer**; sharing a key grants access to that workspace. Do not expose this prototype to your LAN or the internet.
 - No raw usernames, Windows event messages, visited websites, browser histories, passwords, personal files, or IP addresses are collected.
 - Process list is only viewed on demand; it is **not written** to SQLite.
 - The downloadable JSON diagnostic report contains aggregated system percentages, timestamp-based sampling gaps, and collector status. It omits usernames, IP addresses, process names, file paths, device identifiers and Windows event details. Inspect the report before sharing because timestamps and performance patterns may still reveal usage habits.
-- Metrics stay in `data/techpulse.sqlite3`, which is excluded from Git. The default retention is seven days; old records are pruned periodically while the monitor runs.
+- Metrics default to `%LOCALAPPDATA%/TechPulse/techpulse.sqlite3` on Windows, or `$XDG_DATA_HOME/TechPulse/techpulse.sqlite3` (fallback `~/.local/share`) on Unix. Existing repository-local databases are left untouched; use `TECHPULSE_DB` to select one deliberately. The default retention is seven days; old records are pruned periodically while the monitor runs.
 - The Windows security feature may require additional Windows permissions; failure is shown as unavailable instead of pretending the system is safe.
 - A failed Windows sign-in (4625) may have innocent explanations. TechPulse does **not** claim to detect attacks or malware.
 
 ## Limits
 
 - Sampling only occurs while the app is open. Monitoring is not continuous after the terminal closes. Previously stored samples are marked outdated after three missed collection intervals (minimum 45 seconds); even a recent stored row cannot be labeled healthy unless the current collector has succeeded. Collector failures are reported separately from HTTP-server liveness.
-- The first CPU reading is intentionally primed before sampling; network readings are rates between two counter samples.
+- CPU uses a short measurement interval on the sampling worker thread; network readings are rates between two counter samples.
 - Diagnostic gap counts indicate intervals between saved samples of at least twice the expected interval (minimum 30 seconds). They do **not** establish whether monitoring was continuously running, and summaries are historical, not live health assessments.
 - The Security panel is Windows-specific and may lack permission even on Windows. The MVP does not monitor firewall rules or antivirus status.
 - This is not an agent deployed across enterprise machines, not a threat-detection model, and not a production hardening tool.
-- Tests passed locally on Linux; validate Windows compatibility with the real PC before claiming that the Windows feature works.
+- Core metrics and the authenticated dashboard have been exercised on Windows. This does not establish that Windows Security-log access is available to every OS account.
 
 ## Next engineering milestones
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned features and engineering milestones.
 
-## Credits
+## Browser demo
 
-Designed and built as a learning portfolio project with AI-assisted implementation. The owner should be able to explain, modify, test and demonstrate its architecture before describing it as their independent software engineering experience.
+The static demo lives in `demo/`. Rebuild it with `python scripts/build_demo.py` after installing the project dependencies. Preview it with `python -m http.server 8080 --bind 127.0.0.1 --directory demo`. Only the contents of `demo/` belong on the `gh-pages` branch. Do not publish a database, a log export, an access key, or the whole local workspace.
+
+The demo has no analytics or application backend. The hosting provider still receives ordinary web requests. Keep sensitive information out of demo notes, even though the app does not send them to the project owner.
+
+## Moving an existing installation
+
+Changing the default folder does not move or delete your old database. Stop the server, keep a backup, and set `TECHPULSE_DB` to the old database path if you want its history. Do not place the file in a shared/public folder. The app measures the computer running Python, not whichever device opens a remote browser page.
