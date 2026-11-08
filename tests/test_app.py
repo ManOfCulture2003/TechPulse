@@ -20,6 +20,7 @@ def sample(timestamp=None, **kw):
 
 def test_health_and_home(tmp_path):
     with TestClient(create_app(tmp_path / "app.sqlite", collect=False), base_url="http://localhost") as client:
+        assert client.post("/auth/login", json={"key": client.app.state.access.key}).status_code == 200
         health = client.get("/api/health").json()
         assert health["local_only"] is True
         assert health["collector"]["state"] == "disabled"
@@ -29,6 +30,7 @@ def test_health_and_home(tmp_path):
 
 def test_robots_cannot_change_metrics(tmp_path):
     with TestClient(create_app(tmp_path / "app.sqlite", collect=False), base_url="http://localhost") as client:
+        assert client.post("/auth/login", json={"key": client.app.state.access.key}).status_code == 200
         assert client.post("/api/overview").status_code == 405
         assert client.get("/api/history?minutes=0").status_code == 422
         assert client.get("/api/history?minutes=100000").status_code == 422
@@ -40,6 +42,7 @@ def test_history_round_trip_csv(tmp_path):
     store = HistoryStore(db)
     store.add(sample())
     with TestClient(create_app(db, collect=False), base_url="http://localhost") as client:
+        assert client.post("/auth/login", json={"key": client.app.state.access.key}).status_code == 200
         o = client.get("/api/overview").json()
         assert o["sample"]["cpu_percent"] == 26.1
         assert len(client.get("/api/history").json()["points"]) == 1
@@ -72,6 +75,7 @@ def test_overview_discloses_stale_values_without_live_alerts(tmp_path):
     old = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat(timespec="seconds")
     HistoryStore(db).add(sample(timestamp=old, cpu_percent=99))
     with TestClient(create_app(db, collect=False, interval=15), base_url="http://localhost") as client:
+        assert client.post("/auth/login", json={"key": client.app.state.access.key}).status_code == 200
         result = client.get("/api/overview").json()
         assert result["sample"]["cpu_percent"] == 99
         assert result["collection"]["state"] == "stale"
@@ -83,6 +87,7 @@ def test_recent_database_row_does_not_imply_live_collection(tmp_path):
     db = tmp_path / "fresh.sqlite"
     HistoryStore(db).add(sample(cpu_percent=99))
     with TestClient(create_app(db, collect=False, interval=15), base_url="http://localhost") as client:
+        assert client.post("/auth/login", json={"key": client.app.state.access.key}).status_code == 200
         result = client.get("/api/overview").json()
         assert result["collection"]["state"] == "fresh"
         assert result["collector"]["state"] == "disabled"
@@ -93,6 +98,7 @@ def test_live_collector_allows_current_threshold_alerts(tmp_path):
     db = tmp_path / "running.sqlite"
     HistoryStore(db).add(sample(cpu_percent=99))
     with TestClient(create_app(db, collect=False, interval=15), base_url="http://localhost") as client:
+        assert client.post("/auth/login", json={"key": client.app.state.access.key}).status_code == 200
         # Simulate a successful collection without starting the background worker.
         client.app.state.collector_status.succeeded()
         result = client.get("/api/overview").json()
@@ -104,6 +110,7 @@ def test_collector_failure_suppresses_recent_threshold_alerts(tmp_path):
     db = tmp_path / "error.sqlite"
     HistoryStore(db).add(sample(cpu_percent=99))
     with TestClient(create_app(db, collect=False, interval=15), base_url="http://localhost") as client:
+        assert client.post("/auth/login", json={"key": client.app.state.access.key}).status_code == 200
         client.app.state.collector_status.succeeded()
         client.app.state.collector_status.failed()
         result = client.get("/api/overview").json()

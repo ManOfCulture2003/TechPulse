@@ -21,7 +21,7 @@ import webbrowser
 ROOT = Path(__file__).resolve().parent
 HOST = "127.0.0.1"
 PORT = 8765
-HEALTH_URL = f"http://{HOST}:{PORT}/api/health"
+HEALTH_URL = f"http://{HOST}:{PORT}/healthz"
 DASHBOARD_URL = f"http://{HOST}:{PORT}"
 MIN_PYTHON = (3, 11)
 READY_TIMEOUT = 20
