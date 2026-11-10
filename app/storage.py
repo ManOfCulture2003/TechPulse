@@ -47,9 +47,14 @@ class HistoryStore:
             conn.execute(f"INSERT OR REPLACE INTO samples ({','.join(COLUMNS)}) VALUES ({placeholders})", vals)
 
     def recent(self, minutes: int = 120, limit: int = 240) -> list[dict]:
-        since = (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat(timespec="seconds")
+        current = datetime.now(timezone.utc)
+        since = (current - timedelta(minutes=minutes)).isoformat(timespec="seconds")
+        until = current.isoformat(timespec="seconds")
         with self.connection() as conn:
-            rows = conn.execute("SELECT * FROM samples WHERE timestamp >= ? ORDER BY timestamp ASC", (since,)).fetchall()
+            rows = conn.execute(
+                "SELECT * FROM samples WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp ASC",
+                (since, until),
+            ).fetchall()
         data = [dict(row) for row in rows]
         if len(data) <= limit:
             return data
