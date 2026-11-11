@@ -57,6 +57,8 @@ def create_app(db_path: Path | None = None, collect: bool = True, interval: int 
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # Enforce seven-day retention at startup, even with collection disabled.
+        await asyncio.to_thread(store.prune)
         task = asyncio.create_task(collect_loop()) if collect else None
         try:
             yield
@@ -137,9 +139,10 @@ def create_app(db_path: Path | None = None, collect: bool = True, interval: int 
         )
 
     @app.get("/api/export.csv")
-    def export_csv():
-        return PlainTextResponse(store.csv_export(), media_type="text/csv",
-                                 headers={"Content-Disposition": 'attachment; filename="techpulse-history.csv"'})
+    def export_csv(minutes: int = Query(default=10080, ge=10, le=10080)):
+        return PlainTextResponse(store.csv_export(minutes=minutes), media_type="text/csv",
+                                 headers={"Content-Disposition": 'attachment; filename="techpulse-history.csv"',
+                                          "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
     return app
 
 
