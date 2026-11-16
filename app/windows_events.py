@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import platform
 import subprocess
+from datetime import datetime, timedelta, timezone
 
 # Static PowerShell, no input interpolation. Only event ID and timestamp are returned.
 PS_SCRIPT = r"""
@@ -30,7 +31,25 @@ def read_failed_logins() -> dict:
         raw = json.loads(result.stdout)
         if not isinstance(raw, list):
             return {"status": "unavailable", "message": "Unexpected Event Log response.", "events": []}
-        events = [{"id": 4625, "time": str(event["time"])} for event in raw[:25] if isinstance(event, dict) and "time" in event]
+        # Validate the untrusted subprocess payload; never invent an event ID.
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(hours=24)
+        events = []
+        for event in raw[:100]:
+            if not isinstance(event, dict) or type(event.get("id")) is not int or event["id"] != 4625:
+                continue
+            stamp = event.get("time")
+            if not isinstance(stamp, str):
+                continue
+            try:
+                parsed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if parsed.tzinfo is None or not cutoff <= parsed.astimezone(timezone.utc) <= now:
+                continue
+            events.append({"id": 4625, "time": stamp})
+            if len(events) == 25:
+                break
         return {"status": "available", "message": "Failed Windows sign-ins (event 4625) from the last 24 hours. Not proof of an attack.", "events": events}
     except (ValueError, KeyError, TypeError):
         return {"status": "unavailable", "message": "Could not parse the Event Log response.", "events": []}
