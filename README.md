@@ -15,7 +15,7 @@ Preview screenshot is included in the downloadable ZIP; source files live in thi
 - Flags explainable resource thresholds (CPU >= 90%, RAM >= 85%, disk >= 90%) **only when the local collector is running and readings are fresh**. Old samples, collection failures, and disconnected dashboards cannot be reported as healthy.
 - Lists the top seven running processes by resident memory, without any ability to kill them.
 - Optionally shows the **25 most recent Windows Security event 4625 failed-sign-in records from the previous 24 hours**, where permitted. Only event IDs and timestamps are returned.
-- Exports collected history as CSV, plus a **privacy-minimized JSON diagnostic report** with 60-minute CPU/RAM/disk summaries, sample gaps and collector status. No process names, usernames, IPs or device identifiers are included in the report.
+- Streams up to 10,000 collected history rows as CSV (10-minute to 7-day UTC window; HTTP 413 for larger exports), plus a **privacy-minimized JSON diagnostic report** with 60-minute CPU/RAM/disk summaries, sample gaps and collector status. No process names, usernames, IPs or device identifiers are included in the report.
 - Provides a small documented REST API at `/api/docs`.
 - Uses no cloud services, analytics SDKs or paid APIs. All assets and data processing run locally.
 
