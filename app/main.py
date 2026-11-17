@@ -8,8 +8,8 @@ from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, Query
-from fastapi.responses import FileResponse, PlainTextResponse, JSONResponse
+from fastapi import FastAPI, Query, HTTPException
+from fastapi.responses import FileResponse, PlainTextResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -137,9 +137,15 @@ def create_app(db_path: Path | None = None, collect: bool = True, interval: int 
         )
 
     @app.get("/api/export.csv")
-    def export_csv():
-        return PlainTextResponse(store.csv_export(), media_type="text/csv",
-                                 headers={"Content-Disposition": 'attachment; filename="techpulse-history.csv"'})
+    def export_csv(minutes: int = Query(default=10080, ge=10, le=10080)):
+        try:
+            rows = store.csv_stream(minutes=minutes)
+        except ValueError as exc:
+            raise HTTPException(status_code=413, detail=str(exc)) from exc
+        return StreamingResponse(rows, media_type="text/csv",
+                                 headers={"Content-Disposition": 'attachment; filename="techpulse-history.csv"',
+                                          "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+                                          "X-Export-Row-Limit": "10000"})
     return app
 
 
