@@ -79,3 +79,36 @@ def test_connection_rolls_back_and_closes_on_error(tmp_path):
         conn.execute("SELECT 1")
     with db.connection() as reopened:
         assert reopened.execute("SELECT COUNT(*) FROM marker").fetchone()[0] == 0
+
+
+def test_csv_stream_filters_window_and_future_and_has_header(tmp_path):
+    import csv
+    import io
+    db = HistoryStore(tmp_path / "csv.db")
+    now = datetime(2026, 11, 17, 20, tzinfo=timezone.utc)
+    for value, offset in [(1, -601), (2, -600), (3, -5), (4, 5)]:
+        db.add(datum(value, timestamp=(now + timedelta(seconds=offset)).isoformat(timespec="seconds")))
+    result = "".join(db.csv_stream(minutes=10, now=now))
+    records = list(csv.DictReader(io.StringIO(result)))
+    assert [float(row["cpu_percent"]) for row in records] == [2, 3]
+
+
+def test_csv_stream_rejects_oversized_before_any_output(tmp_path):
+    db = HistoryStore(tmp_path / "csv.db")
+    now = datetime(2026, 11, 17, 20, tzinfo=timezone.utc)
+    for i in range(3):
+        db.add(datum(i, timestamp=(now - timedelta(seconds=i)).isoformat(timespec="seconds")))
+    with pytest.raises(ValueError, match="row safety limit"):
+        db.csv_stream(minutes=10, now=now, max_rows=2)
+    assert len(list(db.csv_stream(minutes=10, now=now, max_rows=3))) == 4
+
+
+def test_csv_stream_rejects_invalid_inputs(tmp_path):
+    db = HistoryStore(tmp_path / "csv.db")
+    for minutes in (0, 9, 10081, True):
+        with pytest.raises(ValueError, match="minutes"):
+            db.csv_stream(minutes=minutes)
+    with pytest.raises(ValueError, match="time zone"):
+        db.csv_stream(now=datetime(2026, 11, 17))
+    with pytest.raises(ValueError, match="max_rows"):
+        db.csv_stream(max_rows=0)
