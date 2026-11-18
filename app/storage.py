@@ -82,6 +82,51 @@ class HistoryStore:
             writer.writerow([row[col] for col in COLUMNS])
         return output.getvalue()
 
+
+    def csv_stream(self, minutes: int = 10080, *, now: datetime | None = None, max_rows: int = 10000):
+        """Yield CSV rows incrementally. Reject exports exceeding the configured row cap.
+
+        The preflight count avoids starting an HTTP response that cannot finish.
+        LIMIT protects against concurrent inserts between the count and streaming.
+        """
+        if not isinstance(minutes, int) or isinstance(minutes, bool) or not 10 <= minutes <= 10080:
+            raise ValueError("minutes must be between 10 and 10080")
+        if not isinstance(max_rows, int) or isinstance(max_rows, bool) or not 1 <= max_rows <= 100000:
+            raise ValueError("max_rows must be between 1 and 100000")
+        current = now if now is not None else datetime.now(timezone.utc)
+        if current.tzinfo is None or current.utcoffset() is None:
+            raise ValueError("now must have a time zone")
+        current = current.astimezone(timezone.utc)
+        start = (current - timedelta(minutes=minutes)).isoformat(timespec="seconds")
+        end = current.isoformat(timespec="seconds")
+        sql_where = "timestamp >= ? AND timestamp <= ?"
+        with self.connection() as conn:
+            # Stop counting at the first record beyond the cap.
+            count = conn.execute(
+                f"SELECT COUNT(*) FROM (SELECT 1 FROM samples WHERE {sql_where} LIMIT ?)",
+                (start, end, max_rows + 1),
+            ).fetchone()[0]
+        if count > max_rows:
+            raise ValueError("CSV export exceeds the 10000-row safety limit; choose a shorter time window")
+
+        def rows():
+            buffer = io.StringIO()
+            writer = csv.writer(buffer)
+            writer.writerow(COLUMNS)
+            yield buffer.getvalue()
+            with self.connection() as conn:
+                cursor = conn.execute(
+                    f"SELECT {','.join(COLUMNS)} FROM samples WHERE {sql_where} "
+                    "ORDER BY timestamp ASC LIMIT ?",
+                    (start, end, max_rows),
+                )
+                for record in cursor:
+                    buffer.seek(0)
+                    buffer.truncate(0)
+                    writer.writerow([record[column] for column in COLUMNS])
+                    yield buffer.getvalue()
+        return rows()
+
     def summary(self, minutes: int = 60, interval_seconds: int = 15, *, now: datetime | None = None) -> dict:
         """Summarize a bounded window using SQLite, without exporting raw readings.
 
