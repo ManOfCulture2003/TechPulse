@@ -25,6 +25,8 @@ LOG = logging.getLogger("techpulse")
 
 
 def create_app(db_path: Path | None = None, collect: bool = True, interval: int = 15) -> FastAPI:
+    if isinstance(interval, bool) or not isinstance(interval, int) or not 1 <= interval <= 3600:
+        raise ValueError("interval must be an integer between 1 and 3600 seconds")
     store = HistoryStore(db_path or DEFAULT_DB)
     monitor = Monitor()
     collector_status = CollectorStatus(enabled=collect)
