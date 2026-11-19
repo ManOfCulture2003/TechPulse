@@ -8,7 +8,15 @@ from datetime import datetime, timedelta, timezone
 # Static PowerShell, no input interpolation. Only event ID and timestamp are returned.
 PS_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
-$events = @(Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625; StartTime=(Get-Date).AddHours(-24)} -MaxEvents 25 -ErrorAction SilentlyContinue)
+try {
+    $events = @(Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625; StartTime=(Get-Date).AddHours(-24)} -MaxEvents 25 -ErrorAction Stop)
+} catch {
+    if ($_.FullyQualifiedErrorId.Split(',')[0] -eq 'NoMatchingEventsFound') {
+        $events = @()
+    } else {
+        throw
+    }
+}
 $items = @($events | ForEach-Object { @{ id = 4625; time = $_.TimeCreated.ToUniversalTime().ToString('o') } })
 ConvertTo-Json -InputObject $items -Compress -Depth 3
 """
