@@ -51,9 +51,12 @@ def read_failed_logins() -> dict:
                 continue
             try:
                 parsed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
-            except ValueError:
+                if parsed.tzinfo is None:
+                    continue
+                parsed = parsed.astimezone(timezone.utc)
+            except (ValueError, OverflowError):
                 continue
-            if parsed.tzinfo is None or not cutoff <= parsed.astimezone(timezone.utc) <= now:
+            if not cutoff <= parsed <= now:
                 continue
             events.append({"id": 4625, "time": stamp})
             if len(events) == 25:
