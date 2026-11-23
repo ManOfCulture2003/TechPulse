@@ -47,6 +47,9 @@ class HistoryStore:
             conn.execute(f"INSERT OR REPLACE INTO samples ({','.join(COLUMNS)}) VALUES ({placeholders})", vals)
 
     def recent(self, minutes: int = 120, limit: int = 240) -> list[dict]:
+        """Return ordered history; a one-point request returns the newest reading."""
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+            raise ValueError("limit must be a positive integer")
         current = datetime.now(timezone.utc)
         since = (current - timedelta(minutes=minutes)).isoformat(timespec="seconds")
         until = current.isoformat(timespec="seconds")
@@ -58,6 +61,8 @@ class HistoryStore:
         data = [dict(row) for row in rows]
         if len(data) <= limit:
             return data
+        if limit == 1:
+            return data[-1:]
         # Deterministic downsampling preserves the oldest and latest points.
         indices = [round(i * (len(data) - 1) / (limit - 1)) for i in range(limit)]
         return [data[i] for i in indices]
