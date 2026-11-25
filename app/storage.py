@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import csv
 import io
+import math
+from numbers import Real
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -41,6 +43,16 @@ class HistoryStore:
             )""")
 
     def add(self, sample: dict):
+        for key in COLUMNS[1:]:
+            value = sample.get(key)
+            if isinstance(value, bool) or not isinstance(value, Real):
+                raise ValueError(f"{key} must be a finite nonnegative number")
+            try:
+                valid = math.isfinite(value) and value >= 0
+            except OverflowError:
+                valid = False
+            if not valid or (key.endswith("_percent") and value > 100):
+                raise ValueError(f"{key} is outside its valid measurement range")
         vals = tuple(sample[key] for key in COLUMNS)
         placeholders = ",".join("?" for _ in COLUMNS)
         with self.connection() as conn:
