@@ -41,6 +41,15 @@ class HistoryStore:
             )""")
 
     def add(self, sample: dict):
+        # SQLite compares these timestamps as text; offsets must share one format.
+        try:
+            stamp = datetime.fromisoformat(sample["timestamp"].replace("Z", "+00:00"))
+            if stamp.tzinfo is None or stamp.utcoffset() is None:
+                raise ValueError("timestamp requires a time zone")
+            normalized = stamp.astimezone(timezone.utc).isoformat(timespec="seconds")
+        except (KeyError, AttributeError, TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("timestamp must be a valid time-zone-aware date") from exc
+        sample = {**sample, "timestamp": normalized}
         vals = tuple(sample[key] for key in COLUMNS)
         placeholders = ",".join("?" for _ in COLUMNS)
         with self.connection() as conn:
