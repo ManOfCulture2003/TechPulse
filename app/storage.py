@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import csv
 import io
+import math
+from numbers import Real
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -50,6 +52,18 @@ class HistoryStore:
         except (KeyError, AttributeError, TypeError, ValueError, OverflowError) as exc:
             raise ValueError("timestamp must be a valid time-zone-aware date") from exc
         sample = {**sample, "timestamp": normalized}
+        for key in COLUMNS[1:]:
+            value = sample.get(key)
+            if isinstance(value, bool) or not isinstance(value, Real):
+                raise ValueError(f"{key} must be a finite nonnegative number")
+            try:
+                value = float(value)
+                valid = math.isfinite(value) and value >= 0
+            except OverflowError:
+                valid = False
+            if not valid or (key.endswith("_percent") and value > 100):
+                raise ValueError(f"{key} is outside its valid measurement range")
+            sample[key] = value
         vals = tuple(sample[key] for key in COLUMNS)
         placeholders = ",".join("?" for _ in COLUMNS)
         with self.connection() as conn:
